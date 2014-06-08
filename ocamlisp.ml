@@ -156,6 +156,12 @@ let addToEnv sym value env =
     Cons(a, d) -> a := makeCons (makeCons sym value) !a
   | _ -> ()
 
+let updateVar sym value env =
+  let bind = findVar sym env in
+    match bind with
+      Cons(a, d) -> d := value
+    | _ -> addToEnv sym value gEnv
+
 let rec eval obj env =
   match obj with
     Sym _ -> (
@@ -178,7 +184,13 @@ and evalCons obj env =
     else if opr == symDefun then (
       addToEnv (safeCar args) (makeExpr (safeCdr args) env) gEnv;
       safeCar args)
+    else if opr == symSetq then
+      let value = eval (safeCar (safeCdr args)) env in
+      let sym = safeCar args in (
+        updateVar sym value env;
+        value)
     else apply (eval opr env) (evlis args env Nil) env
+
 and evlis lst env acc =
   match lst with
     Nil -> nreverse acc

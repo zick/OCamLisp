@@ -36,6 +36,12 @@ let makeSym str =
         symTable := (str, ret)::(!symTable);
         ret
 
+let symQuote = makeSym "quote"
+let symIf = makeSym "if"
+let symLambda = makeSym "lambda"
+let symDefun = makeSym "defun"
+let symSetq = makeSym "setq"
+
 let makeCons a d = Cons(ref a, ref d)
 
 let rec nreconc lst tail =
@@ -140,14 +146,43 @@ let addToEnv sym value env =
     Cons(a, d) -> a := makeCons (makeCons sym value) !a
   | _ -> ()
 
-let eval obj env =
+let rec eval obj env =
   match obj with
     Sym _ -> (
       match findVar obj env with
         Nil -> Error ((printObj obj) ^ " has no value")
       | pair -> safeCdr(pair))
-  | Cons _ -> Error "noimpl"
+  | Cons _ -> evalCons obj env
   | _ -> obj
+and evalCons obj env =
+  let opr = safeCar obj in
+  let args = safeCdr obj in
+    if opr == symQuote then
+      safeCar args
+    else if opr == symIf then
+      match eval (safeCar args) env with
+        Nil -> eval (safeCar (safeCdr (safeCdr args))) env
+      | _ -> eval (safeCar (safeCdr args)) env
+    else apply (eval opr env) (evlis args env Nil) env
+and evlis lst env acc =
+  match lst with
+    Nil -> nreverse acc
+  | _ -> (
+    match eval (safeCar lst) env with
+      Error e -> Error e
+    | elm -> evlis (safeCdr lst) env (makeCons elm acc))
+and apply f args env =
+  match (f, args) with
+    (Error e, _) -> Error e
+  | (_, Error e) -> Error e
+  | (Subr f1, _) -> f1 args
+  | _ -> Error ((printObj f) ^ " is not function")
+
+let subrCar args = safeCar (safeCar args)
+
+let subrCdr args = safeCdr (safeCar args)
+
+let subrCons args = makeCons (safeCar args) (safeCar (safeCdr args))
 
 let first (x, y) = x
 
@@ -158,5 +193,8 @@ let rec repl prompt =
   repl prompt
 
 let () =
+  addToEnv (makeSym "car") (Subr subrCar) gEnv;
+  addToEnv (makeSym "cdr") (Subr subrCdr) gEnv;
+  addToEnv (makeSym "cons") (Subr subrCons) gEnv;
   addToEnv (makeSym "t") (makeSym "t") gEnv;
   try repl "> " with End_of_file -> ()

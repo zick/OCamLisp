@@ -116,16 +116,47 @@ let rec printObj obj =
 and printList obj delimiter acc =
   match obj with
     Cons(a, d) ->
-      printList (!d) " " (acc ^ delimiter ^ printObj (!a))
+      printList !d " " (acc ^ delimiter ^ printObj !a)
   | Nil -> acc
   | _ -> acc ^ " . " ^ printObj obj
+
+let rec findVarInFrame str alist =
+  match safeCar (safeCar alist) with
+    Sym k -> if k = str then safeCar alist
+             else findVarInFrame str (safeCdr alist)
+  | _ -> Nil
+let rec findVar sym env =
+  match (env, sym) with
+    (Cons(a, d), Sym str) -> (
+      match findVarInFrame str !a with
+        Nil -> findVar sym !d
+      | pair -> pair)
+  | _ -> Nil
+
+let gEnv = makeCons Nil Nil
+
+let addToEnv sym value env =
+  match env with
+    Cons(a, d) -> a := makeCons (makeCons sym value) !a
+  | _ -> ()
+
+let eval obj env =
+  match obj with
+    Sym _ -> (
+      match findVar obj env with
+        Nil -> Error ((printObj obj) ^ " has no value")
+      | pair -> safeCdr(pair))
+  | Cons _ -> Error "noimpl"
+  | _ -> obj
 
 let first (x, y) = x
 
 let rec repl prompt =
   print_string prompt;
-  print_string (printObj (first (read (read_line ()))));
+  print_string (printObj (eval (first (read (read_line ()))) gEnv));
   print_newline ();
   repl prompt
 
-let () = try repl "> " with End_of_file -> ()
+let () =
+  addToEnv (makeSym "t") (makeSym "t") gEnv;
+  try repl "> " with End_of_file -> ()

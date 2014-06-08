@@ -41,6 +41,7 @@ let symIf = makeSym "if"
 let symLambda = makeSym "lambda"
 let symDefun = makeSym "defun"
 let symSetq = makeSym "setq"
+let symT = makeSym "t"
 
 let makeCons a d = Cons(ref a, ref d)
 
@@ -216,6 +217,47 @@ let subrCdr args = safeCdr (safeCar args)
 
 let subrCons args = makeCons (safeCar args) (safeCar (safeCdr args))
 
+let subrEq args =
+  match (safeCar args, safeCar (safeCdr args)) with
+    (Num x, Num y) -> if x = y then symT else Nil
+  | (x, y) -> if x == y then symT else Nil
+
+let subrAtom args =
+  match safeCar args with
+    Cons _ -> Nil
+  | _ -> symT
+
+let subrNumberp args =
+  match safeCar args with
+    Num _ -> symT
+  | _ -> Nil
+
+let subrSymbolp args =
+  match safeCar args with
+    Sym _ -> symT
+  | _ -> Nil
+
+let subrAddOrMul f initValue =
+  let rec doit args acc =
+    match args with
+      Cons(a, d) -> (
+        match (!a, !d) with
+          (Num num, rest) -> doit rest (f(acc, num))
+        | _ -> Error "wrong type")
+    | _ -> Num acc
+    in fun args -> doit args initValue
+let subrAdd = subrAddOrMul (fun (x, y) -> x + y) 0
+let subrMul = subrAddOrMul (fun (x, y) -> x * y) 1
+
+let subrSubOrDivOrMod f =
+  fun args ->
+    match (safeCar args, safeCar (safeCdr args)) with
+      (Num x, Num y) -> Num (f(x, y))
+    | _ -> Error "wrong type"
+let subrSub = subrSubOrDivOrMod (fun (x, y) -> x - y)
+let subrDiv = subrSubOrDivOrMod (fun (x, y) -> x / y)
+let subrMod = subrSubOrDivOrMod (fun (x, y) -> x mod y)
+
 let first (x, y) = x
 
 let rec repl prompt =
@@ -228,5 +270,14 @@ let () =
   addToEnv (makeSym "car") (Subr subrCar) gEnv;
   addToEnv (makeSym "cdr") (Subr subrCdr) gEnv;
   addToEnv (makeSym "cons") (Subr subrCons) gEnv;
+  addToEnv (makeSym "eq") (Subr subrEq) gEnv;
+  addToEnv (makeSym "atom") (Subr subrAtom) gEnv;
+  addToEnv (makeSym "numberp") (Subr subrNumberp) gEnv;
+  addToEnv (makeSym "symbolp") (Subr subrSymbolp) gEnv;
+  addToEnv (makeSym "+") (Subr subrAdd) gEnv;
+  addToEnv (makeSym "*") (Subr subrMul) gEnv;
+  addToEnv (makeSym "-") (Subr subrSub) gEnv;
+  addToEnv (makeSym "/") (Subr subrDiv) gEnv;
+  addToEnv (makeSym "mod") (Subr subrMod) gEnv;
   addToEnv (makeSym "t") (makeSym "t") gEnv;
   try repl "> " with End_of_file -> ()

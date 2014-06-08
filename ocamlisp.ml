@@ -44,6 +44,8 @@ let symSetq = makeSym "setq"
 
 let makeCons a d = Cons(ref a, ref d)
 
+let makeExpr args env = Expr(safeCar args, safeCdr args, env)
+
 let rec nreconc lst tail =
   match lst with
     Cons(a, d) ->
@@ -52,6 +54,14 @@ let rec nreconc lst tail =
         nreconc tmp lst
   | _ -> tail
 let nreverse lst = nreconc lst Nil
+
+let pairlis lst1 lst2 =
+  let rec doit lst1 lst2 acc =
+    match (lst1, lst2) with
+      (Cons(a1, d1), Cons(a2, d2)) ->
+        doit !d1 !d2 (makeCons (makeCons !a1 !a2) acc)
+    | _ -> nreverse acc
+  in doit lst1 lst2 Nil
 
 let isSpace c =
   c = '\t' || c = '\r' || c = '\n' || c = ' '
@@ -163,6 +173,8 @@ and evalCons obj env =
       match eval (safeCar args) env with
         Nil -> eval (safeCar (safeCdr (safeCdr args))) env
       | _ -> eval (safeCar (safeCdr args)) env
+    else if opr == symLambda then
+      makeExpr args env
     else apply (eval opr env) (evlis args env Nil) env
 and evlis lst env acc =
   match lst with
@@ -171,11 +183,16 @@ and evlis lst env acc =
     match eval (safeCar lst) env with
       Error e -> Error e
     | elm -> evlis (safeCdr lst) env (makeCons elm acc))
+and progn body env acc =
+  match body with
+    Cons(a, d) -> progn !d env (eval !a env)
+  | _ -> acc
 and apply f args env =
   match (f, args) with
     (Error e, _) -> Error e
   | (_, Error e) -> Error e
   | (Subr f1, _) -> f1 args
+  | (Expr(a, b, e) ,_) -> progn b (makeCons (pairlis a args) e) Nil
   | _ -> Error ((printObj f) ^ " is not function")
 
 let subrCar args = safeCar (safeCar args)

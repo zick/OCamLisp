@@ -5,7 +5,7 @@ Lisp implementation in OCaml.
 
 == How to use
 
-% ocaml ocamlisp.ml  # or, ocamlc -o ocamlisp ocamlisp.ml && ./ocamlisp
+% ocaml ocamlisp.ml  # or, ocamlopt -o ocamlisp ocamlisp.ml && ./ocamlisp
 > (car '(a b c))
 a
 > (cdr '(a b c))

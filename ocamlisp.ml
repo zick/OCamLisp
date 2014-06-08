@@ -36,6 +36,17 @@ let makeSym str =
         symTable := (str, ret)::(!symTable);
         ret
 
+let makeCons a d = Cons(ref a, ref d)
+
+let rec nreconc lst tail =
+  match lst with
+    Cons(a, d) ->
+      let tmp = !d in
+        d := tail;
+        nreconc tmp lst
+  | _ -> tail
+let nreverse lst = nreconc lst Nil
+
 let isSpace c =
   c = '\t' || c = '\r' || c = '\n' || c = ' '
 
@@ -67,20 +78,54 @@ let readAtom str =
        String.sub str n (String.length str - n))
   | None -> (makeNumOrSym str, "")
 
-let read str =
+let lookAhead str =
    let str1 = skipSpaces str in
    let c = if str1 = "" then '_' else str.[0] in
-     if str1 = "" then (Error "empty input", "")
-     else if c = kRPar then (Error ("invalid syntax: " ^ str), "")
-     else if c = kLPar then (Error "noimpl", "")
-     else if c = kQuote then (Error "noimpl", "")
-     else readAtom str1
+   let rest = if str1 = "" then ""
+              else (String.sub str1 1 (String.length str1 - 1)) in
+     (str1, c, rest)
 
-let printObj _ = ()
+let rec read str =
+  let (str1, c, rest) = lookAhead str in
+    if str1 = "" then (Error "empty input", "")
+    else if c = kRPar then (Error ("invalid syntax: " ^ str1), "")
+    else if c = kLPar then readList rest Nil
+    else if c = kQuote then readQuote rest
+    else readAtom str1
+and readQuote str =
+  let (elm, next) = read str in
+    (makeCons (makeSym "quote") (makeCons elm Nil), next)
+and readList str acc =
+  let (str1, c, rest) = lookAhead str in
+    if str1 = "" then (Error "unfinished parenthesis", "")
+    else if c = kRPar then (nreverse acc, rest)
+    else
+      match read str1 with
+        (Error e, next) -> (Error e, next)
+      | (elm, next) -> readList next (makeCons elm acc)
+
+let rec printObj obj =
+  match obj with
+    Nil -> "nil"
+  | Num n -> string_of_int n
+  | Sym s -> s
+  | Error s -> "<error: " ^ s ^ ">"
+  | Cons(a, d) -> "(" ^ (printList obj "" "") ^ ")"
+  | Subr _ -> "<subr>"
+  | Expr _ -> "<expr>"
+and printList obj delimiter acc =
+  match obj with
+    Cons(a, d) ->
+      printList (!d) " " (acc ^ delimiter ^ printObj (!a))
+  | Nil -> acc
+  | _ -> acc ^ " . " ^ printObj obj
+
+let first (x, y) = x
 
 let rec repl prompt =
   print_string prompt;
-  printObj (read (read_line ()));
+  print_string (printObj (first (read (read_line ()))));
+  print_newline ();
   repl prompt
 
 let () = try repl "> " with End_of_file -> ()
